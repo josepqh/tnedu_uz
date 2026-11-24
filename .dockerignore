@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+.vercel
+.local-db
+.local-db.lock
+node_modules
+dist
+docs
+test-results
+playwright-report
+tests
+deploy

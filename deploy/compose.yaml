@@ -1,0 +1,76 @@
+# tnedu.uz on the VPS. Lives in /opt/tnedu, independent of other projects on the server.
+# The shared reverse proxy reaches the app over the external "edge" network; nothing here
+# publishes a port on the host.
+name: tnedu
+
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+
+services:
+  app:
+    image: tnedu-app:latest
+    build:
+      context: ..
+    restart: unless-stopped
+    logging: *logging
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://tnedu:${POSTGRES_PASSWORD:?}@db:5432/tnedu?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    networks: [internal, edge]
+
+  db:
+    image: postgres:18.1-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_DB: tnedu
+      POSTGRES_USER: tnedu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tnedu -d tnedu"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    shm_size: 128m
+    mem_limit: 768m
+    networks: [internal]
+
+  db-backup:
+    image: postgres:18.1-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      PGHOST: db
+      PGUSER: tnedu
+      PGDATABASE: tnedu
+      PGPASSWORD: ${POSTGRES_PASSWORD:?}
+      TZ: Asia/Tashkent
+    volumes:
+      - ./backups:/backups
+      - ./backup.sh:/usr/local/bin/backup.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [internal]
+
+volumes:
+  db-data:
+
+networks:
+  internal:
+    internal: true
+  edge:
+    external: true

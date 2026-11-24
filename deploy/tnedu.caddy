@@ -1,0 +1,13 @@
+# Site block for the shared Caddy on the VPS (copied to /opt/edge/sites/tnedu.caddy).
+www.tnedu.uz {
+	encode zstd gzip
+	header -Server
+	request_body {
+		max_size 8MB
+	}
+	reverse_proxy tnedu-app-1:3000
+}
+
+tnedu.uz {
+	redir https://www.tnedu.uz{uri} 308
+}

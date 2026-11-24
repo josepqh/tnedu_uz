@@ -50,7 +50,8 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
       const viewer = await getSessionUser(req);
       const drafts = viewer?.role === 'admin' && req.query.all === '1';
-      res.setHeader('Cache-Control', drafts ? 'no-store' : 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+      // An administrator may see drafts, so nothing they load may sit in a shared cache.
+      res.setHeader('Cache-Control', viewer?.role === 'admin' ? 'no-store' : 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
       if (req.query.slug !== undefined) {
         const rows = await sql`
           SELECT a.id, a.slug, a.title, a.excerpt, a.body, a.cover_image_id, a.published, a.created_at, a.updated_at, u.name AS author_name
@@ -62,7 +63,7 @@ module.exports = async (req, res) => {
         SELECT a.id, a.slug, a.title, a.excerpt, a.cover_image_id, a.published, a.created_at, u.name AS author_name
         FROM np_articles a LEFT JOIN np_users u ON u.id = a.author_id
         WHERE a.published OR ${drafts}::boolean
-        ORDER BY a.created_at DESC`);
+        ORDER BY a.created_at DESC, a.id`);
     }
 
     res.setHeader('Cache-Control', 'no-store');
